@@ -3,19 +3,111 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Test privé OpenClaw</title>
+  <title>Muscu Quick Logger</title>
   <style>
-    body { font-family: -apple-system, system-ui, Segoe UI, Roboto, sans-serif; max-width: 760px; margin: 40px auto; padding: 0 16px; }
-    .card { border: 1px solid #ddd; border-radius: 12px; padding: 20px; }
-    h1 { margin-top: 0; }
-    code { background: #f5f5f5; padding: 2px 6px; border-radius: 6px; }
+    :root{--bg:#0f172a;--card:#111827;--muted:#94a3b8;--txt:#e5e7eb;--acc:#22c55e;--danger:#ef4444}
+    *{box-sizing:border-box} body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:linear-gradient(160deg,#0b1022,#0f172a);color:var(--txt)}
+    .wrap{max-width:900px;margin:24px auto;padding:16px}
+    .card{background:rgba(17,24,39,.85);backdrop-filter: blur(6px);border:1px solid #1f2937;border-radius:16px;padding:16px;margin-bottom:14px}
+    h1{margin:0 0 8px;font-size:1.4rem} p{margin:0;color:var(--muted)}
+    .grid{display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:8px;margin-top:12px}
+    input,button{border-radius:10px;border:1px solid #334155;background:#0b1220;color:var(--txt);padding:10px}
+    button{cursor:pointer;background:#166534;border-color:#22c55e}
+    button:hover{filter:brightness(1.08)}
+    table{width:100%;border-collapse:collapse;margin-top:12px}
+    th,td{padding:10px;border-bottom:1px solid #1f2937;text-align:left}
+    th{color:#93c5fd;font-weight:600}
+    .rowbtn{background:#3b0b0b;border:1px solid #7f1d1d;padding:6px 10px}
+    .empty{color:var(--muted);padding:12px}
+    .stats{display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;color:#cbd5e1}
+    .pill{background:#0b1220;border:1px solid #334155;padding:6px 10px;border-radius:999px}
   </style>
 </head>
 <body>
-  <div class="card">
-    <h1>✅ Projet privé créé</h1>
-    <p>Ce fichier <code>index.html</code> a été généré automatiquement.</p>
-    <p>Si tu lis ça, l’accès GitHub privé fonctionne.</p>
+  <div class="wrap">
+    <div class="card">
+      <h1>🏋️ Muscu Quick Logger</h1>
+      <p>Ajoute tes perfs rapidement (sauvegarde locale navigateur).</p>
+      <div class="grid">
+        <input id="exo" placeholder="Exercice (ex: Dév couché)" />
+        <input id="poids" type="number" step="0.5" placeholder="Poids kg" />
+        <input id="reps" type="number" placeholder="Reps" />
+        <button id="add">Ajouter</button>
+      </div>
+      <div class="stats" id="stats"></div>
+    </div>
+
+    <div class="card">
+      <table>
+        <thead><tr><th>Date</th><th>Exercice</th><th>Poids</th><th>Reps</th><th>Action</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <div class="empty" id="empty">Aucune entrée pour le moment.</div>
+    </div>
   </div>
+
+  <script>
+    const KEY = 'muscu_quick_logger_v1';
+    const rowsEl = document.getElementById('rows');
+    const emptyEl = document.getElementById('empty');
+    const statsEl = document.getElementById('stats');
+    const exoEl = document.getElementById('exo');
+    const poidsEl = document.getElementById('poids');
+    const repsEl = document.getElementById('reps');
+
+    let data = JSON.parse(localStorage.getItem(KEY) || '[]');
+
+    function save(){ localStorage.setItem(KEY, JSON.stringify(data)); }
+
+    function renderStats(){
+      const total = data.length;
+      const maxKg = data.reduce((m,x)=>Math.max(m, Number(x.poids)||0),0);
+      const bestVol = data.reduce((m,x)=>Math.max(m,(Number(x.poids)||0)*(Number(x.reps)||0)),0);
+      statsEl.innerHTML = `
+        <span class="pill">Entrées: <b>${total}</b></span>
+        <span class="pill">Max poids: <b>${maxKg} kg</b></span>
+        <span class="pill">Meilleur volume: <b>${bestVol}</b></span>
+      `;
+    }
+
+    function render(){
+      rowsEl.innerHTML = '';
+      if(!data.length){ emptyEl.style.display='block'; } else { emptyEl.style.display='none'; }
+      data.slice().reverse().forEach((item, idxRev)=>{
+        const idx = data.length - 1 - idxRev;
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${new Date(item.ts).toLocaleString('fr-FR')}</td>
+          <td>${item.exo}</td>
+          <td>${item.poids} kg</td>
+          <td>${item.reps}</td>
+          <td><button class="rowbtn" data-i="${idx}">Supprimer</button></td>
+        `;
+        rowsEl.appendChild(tr);
+      });
+      renderStats();
+    }
+
+    document.getElementById('add').addEventListener('click', ()=>{
+      const exo = exoEl.value.trim();
+      const poids = Number(poidsEl.value);
+      const reps = Number(repsEl.value);
+      if(!exo || !poids || !reps) return alert('Remplis exo + poids + reps');
+      data.push({exo,poids,reps,ts:Date.now()});
+      save(); render();
+      exoEl.value=''; poidsEl.value=''; repsEl.value=''; exoEl.focus();
+    });
+
+    rowsEl.addEventListener('click', (e)=>{
+      if(e.target.matches('.rowbtn')){
+        const i = Number(e.target.dataset.i);
+        data.splice(i,1); save(); render();
+      }
+    });
+
+    [exoEl,poidsEl,repsEl].forEach(el=>el.addEventListener('keydown',e=>{ if(e.key==='Enter') document.getElementById('add').click(); }));
+
+    render();
+  </script>
 </body>
 </html>
